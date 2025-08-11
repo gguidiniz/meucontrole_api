@@ -1,4 +1,5 @@
 from flask import request, jsonify, Blueprint
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from .models import User
 from . import db
 
@@ -28,3 +29,34 @@ def register ():
     db.session.commit()
 
     return jsonify ({'message': 'Usuário criado com sucesso!'}), 201
+
+@main_bp.route('/login', methods=['POST'])
+def login ():
+    data = request.get_json()
+
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Dados obrigatórios não foram enviados'}), 400
+    
+    user = User.query.filter_by(email=data['email']).first()
+
+    if user and user.check_password(data.get('password')):
+        access_token = create_access_token(identity=str(user.id))
+        return jsonify(access_token=access_token)
+    else:
+        return jsonify({'message': 'Credenciais inválidas'}), 401
+    
+@main_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def profile():
+    current_user_id = get_jwt_identity()
+
+    user = User.query.get(current_user_id)
+
+    if not user:
+        return jsonify({"message": "Usuário não encontrado"}), 404
+    
+    return jsonify({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email
+    })
