@@ -14,9 +14,9 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
 
-    @app.route('/status')
-    def status_check():
-        return {"status": "ok", "message": "Api is running!"}
+    from .routes import main_bp
+
+    app.register_blueprint(main_bp)
     
     from . import models
     
