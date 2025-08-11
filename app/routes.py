@@ -1,6 +1,7 @@
 from flask import request, jsonify, Blueprint
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from .models import User
+from datetime import datetime
+from .models import User, Transaction
 from . import db
 
 main_bp = Blueprint('main', __name__)
@@ -60,3 +61,26 @@ def profile():
         "username": user.username,
         "email": user.email
     })
+
+@main_bp.route('/transactions', methods=['POST'])
+@jwt_required()
+def create_transaction():
+    current_user_id = get_jwt_identity()
+
+    data = request.get_json()
+
+    if not data or not data.get('description') or not data.get('amount') or not data.get('transaction_type') or not data.get('date'):
+        return jsonify({'message': 'Dados incompletos'}), 400
+    
+    nova_transacao = Transaction(
+        description=data['description'],
+        amount=data['amount'],
+        transaction_type=data['transaction_type'],
+        date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
+        user_id=current_user_id
+    )
+
+    db.session.add(nova_transacao)
+    db.session.commit()
+
+    return jsonify({'message': 'Transação criada com sucesso!'}), 201
