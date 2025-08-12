@@ -31,6 +31,7 @@ def register ():
 
     return jsonify ({'message': 'Usuário criado com sucesso!'}), 201
 
+
 @main_bp.route('/login', methods=['POST'])
 def login ():
     data = request.get_json()
@@ -45,7 +46,8 @@ def login ():
         return jsonify(access_token=access_token)
     else:
         return jsonify({'message': 'Credenciais inválidas'}), 401
-    
+
+
 @main_bp.route('/profile', methods=['GET'])
 @jwt_required()
 def profile():
@@ -61,6 +63,7 @@ def profile():
         "username": user.username,
         "email": user.email
     })
+
 
 @main_bp.route('/transactions', methods=['POST'])
 @jwt_required()
@@ -84,3 +87,75 @@ def create_transaction():
     db.session.commit()
 
     return jsonify({'message': 'Transação criada com sucesso!'}), 201
+
+
+@main_bp.route('/transactions', methods=['GET'])
+@jwt_required()
+def get_transactions():
+    current_user_id = get_jwt_identity()
+    
+    user_transactions = Transaction.query.filter_by(user_id=current_user_id).all()
+
+    results = [
+        {
+            "id": trans.id,
+            "description": trans.description,
+            "amount": str(trans.amount),
+            "transaction_type": trans.transaction_type,
+            "date": trans.date.isoformat()
+        }
+        for trans in user_transactions
+    ]
+
+    return jsonify(results), 200
+
+
+@main_bp.route('/transactions/<int:transaction_id>', methods=['GET'])
+@jwt_required()
+def get_transaction_detail(transaction_id):
+    current_user_id = get_jwt_identity()
+
+    transacao_encontrada = Transaction.query.get(transaction_id)
+
+    if transacao_encontrada and transacao_encontrada.user_id == int(current_user_id):
+        result = {
+            "id": transacao_encontrada.id,
+            "description": transacao_encontrada.description,
+            "amount": str(transacao_encontrada.amount),
+            "transaction_type": transacao_encontrada.transaction_type,
+            "date": transacao_encontrada.date.isoformat()
+            }
+        
+        return jsonify(result), 200
+    else:
+        return jsonify({'message': 'Transação não encontrada'}), 404
+    
+@main_bp.route('/transactions/<int:transaction_id>', methods=['PUT'])
+@jwt_required()
+def update_transaction(transaction_id):
+    current_user_id = get_jwt_identity()
+
+    transacao_encontrada = Transaction.query.get(transaction_id)
+
+
+    if transacao_encontrada and transacao_encontrada.user_id == int(current_user_id):
+        data = request.get_json()
+        
+        transacao_encontrada.description = data.get('description', transacao_encontrada.description)
+        transacao_encontrada.amount = data.get('amount', transacao_encontrada.amount)
+        transacao_encontrada.transaction_type = data.get('transaction_type', transacao_encontrada.transaction_type)
+        
+        if 'date' in data:
+            transacao_encontrada.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+
+        db.session.commit()
+
+        return jsonify({
+            "id": transacao_encontrada.id,
+            "description": transacao_encontrada.description,
+            "amount": str(transacao_encontrada.amount),
+            "transaction_type": transacao_encontrada.transaction_type,
+            "date": transacao_encontrada.date.isoformat()
+        }), 200
+    else:
+        return jsonify({'message': 'Transação não encontrada'}), 404
