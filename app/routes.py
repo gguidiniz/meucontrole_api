@@ -3,6 +3,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from datetime import datetime
 from .models import User, Transaction
 from . import db
+from sqlalchemy import func
 
 main_bp = Blueprint('main', __name__)
 
@@ -53,7 +54,7 @@ def login ():
 def profile():
     current_user_id = get_jwt_identity()
 
-    user = User.query.get(current_user_id)
+    user = User.query.get(int(current_user_id))
 
     if not user:
         return jsonify({"message": "Usuário não encontrado"}), 404
@@ -75,15 +76,15 @@ def create_transaction():
     if not data or not data.get('description') or not data.get('amount') or not data.get('transaction_type') or not data.get('date'):
         return jsonify({'message': 'Dados incompletos'}), 400
     
-    nova_transacao = Transaction(
+    new_transaction = Transaction(
         description=data['description'],
         amount=data['amount'],
         transaction_type=data['transaction_type'],
         date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
-        user_id=current_user_id
+        user_id=int(current_user_id)
     )
 
-    db.session.add(nova_transacao)
+    db.session.add(new_transaction)
     db.session.commit()
 
     return jsonify({'message': 'Transação criada com sucesso!'}), 201
@@ -94,7 +95,7 @@ def create_transaction():
 def get_transactions():
     current_user_id = get_jwt_identity()
     
-    user_transactions = Transaction.query.filter_by(user_id=current_user_id).all()
+    user_transactions = Transaction.query.filter_by(user_id=int(current_user_id)).all()
 
     results = [
         {
@@ -115,15 +116,15 @@ def get_transactions():
 def get_transaction_detail(transaction_id):
     current_user_id = get_jwt_identity()
 
-    transacao_encontrada = Transaction.query.get(transaction_id)
+    found_transaction = Transaction.query.get(transaction_id)
 
-    if transacao_encontrada and transacao_encontrada.user_id == int(current_user_id):
+    if found_transaction and found_transaction.user_id == int(current_user_id):
         result = {
-            "id": transacao_encontrada.id,
-            "description": transacao_encontrada.description,
-            "amount": str(transacao_encontrada.amount),
-            "transaction_type": transacao_encontrada.transaction_type,
-            "date": transacao_encontrada.date.isoformat()
+            "id": found_transaction.id,
+            "description": found_transaction.description,
+            "amount": str(found_transaction.amount),
+            "transaction_type": found_transaction.transaction_type,
+            "date": found_transaction.date.isoformat()
             }
         
         return jsonify(result), 200
@@ -135,27 +136,27 @@ def get_transaction_detail(transaction_id):
 def update_transaction(transaction_id):
     current_user_id = get_jwt_identity()
 
-    transacao_encontrada = Transaction.query.get(transaction_id)
+    found_transaction = Transaction.query.get(transaction_id)
 
 
-    if transacao_encontrada and transacao_encontrada.user_id == int(current_user_id):
+    if found_transaction and found_transaction.user_id == int(current_user_id):
         data = request.get_json()
         
-        transacao_encontrada.description = data.get('description', transacao_encontrada.description)
-        transacao_encontrada.amount = data.get('amount', transacao_encontrada.amount)
-        transacao_encontrada.transaction_type = data.get('transaction_type', transacao_encontrada.transaction_type)
+        found_transaction.description = data.get('description', found_transaction.description)
+        found_transaction.amount = data.get('amount', found_transaction.amount)
+        found_transaction.transaction_type = data.get('transaction_type', found_transaction.transaction_type)
         
         if 'date' in data:
-            transacao_encontrada.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            found_transaction.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
 
         db.session.commit()
 
         return jsonify({
-            "id": transacao_encontrada.id,
-            "description": transacao_encontrada.description,
-            "amount": str(transacao_encontrada.amount),
-            "transaction_type": transacao_encontrada.transaction_type,
-            "date": transacao_encontrada.date.isoformat()
+            "id": found_transaction.id,
+            "description": found_transaction.description,
+            "amount": str(found_transaction.amount),
+            "transaction_type": found_transaction.transaction_type,
+            "date": found_transaction.date.isoformat()
         }), 200
     else:
         return jsonify({'message': 'Transação não encontrada'}), 404
@@ -166,13 +167,34 @@ def update_transaction(transaction_id):
 def delete_transaction(transaction_id):
     current_user_id = get_jwt_identity()
 
-    transacao_encontrada = Transaction.query.get(transaction_id)
+    found_transaction = Transaction.query.get(transaction_id)
 
-    if transacao_encontrada and transacao_encontrada.user_id == int(current_user_id):
-        db.session.delete(transacao_encontrada)
+    if found_transaction and found_transaction.user_id == int(current_user_id):
+        db.session.delete(found_transaction)
         db.session.commit()
 
         return jsonify({'message': 'Transação deletada com sucesso'}), 200
     else:
         return jsonify({'message': 'Transação não encontrada'}), 404
 
+
+@main_bp.route('/summary', methods=['GET'])
+@jwt_required()
+def get_summary():
+    current_user_id = get_jwt_identity()
+
+    revenue_sum = db.session.query(func.sum(Transaction.amount)).filter_by(user_id=int(current_user_id), 
+                                                                           transaction_type='receita').scalar()
+    total_revenue = revenue_sum or 0
+
+    expenses_sum = db.session.query(func.sum(Transaction.amount)).filter_by(user_id=int(current_user_id),
+                                                                            transaction_type='despesa').scalar()
+    total_expenses = expenses_sum or 0
+
+    balance = total_revenue - total_expenses
+
+    return jsonify({
+        "total_revenue": str(total_revenue),
+        "total_expenses": str(total_expenses),
+        "balance": str(balance)
+    }), 200
