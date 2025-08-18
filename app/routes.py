@@ -159,3 +159,20 @@ def update_transaction(transaction_id):
         }), 200
     else:
         return jsonify({'message': 'Transação não encontrada'}), 404
+
+
+@main_bp.route('/transactions/<int:transaction_id>', methods=['DELETE'])
+@jwt_required()
+def delete_transaction(transaction_id):
+    current_user_id = get_jwt_identity()
+
+    transacao_encontrada = Transaction.query.get(transaction_id)
+
+    if transacao_encontrada and transacao_encontrada.user_id == int(current_user_id):
+        db.session.delete(transacao_encontrada)
+        db.session.commit()
+
+        return jsonify({'message': 'Transação deletada com sucesso'}), 200
+    else:
+        return jsonify({'message': 'Transação não encontrada'}), 404
+
