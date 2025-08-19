@@ -1,11 +1,15 @@
-from flask import request, jsonify, Blueprint
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime
-from .models import User, Transaction
-from . import db
+
+from flask import request, jsonify
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_smorest import Blueprint
 from sqlalchemy import func
 
-main_bp = Blueprint('main', __name__)
+from .models import User, Transaction
+from . import db
+
+
+main_bp = Blueprint('main', __name__, url_prefix='/api')
 
 @main_bp.route('/register', methods=['POST'])
 def register ():
